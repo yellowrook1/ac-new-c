@@ -1,0 +1,40 @@
+name: Release-branch cache consumer
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  CACHE_KEY: poc-cache-key-1
+  CACHE_PATH: .cache-payload
+
+jobs:
+  consume-release-cache:
+    name: Restore and run the release-branch cache
+    if: >-
+      github.repository == 'yellowrook1/ac-new-c' &&
+      github.ref == 'refs/heads/release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Restore the release-branch cache by key
+        id: restore
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache-payload
+          key: poc-cache-key-1
+          enableCrossOsArchive: false
+          fail-on-cache-miss: true
+
+      - name: Run the restored payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${{ steps.restore.outputs.cache-hit }}" == 'true' ]]
+          # Execute the script that came out of the restored cache — i.e. bytes an outside fork
+          # pull request wrote into this trusted branch's cache.
+          output="$("$CACHE_PATH/proof.sh")"
+          echo "consumer executed the cached payload -> $output"
+          [[ "$output" == 'POISONED_CACHE_EXECUTED' ]]
+          echo "CACHE_CONSUME_PROOF: restored the release-branch cache and executed the attacker payload"
