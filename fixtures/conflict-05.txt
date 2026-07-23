@@ -1,1 +1,1 @@
-victim revision A1 for conflict file 05
+victim revision B for conflict file 05
